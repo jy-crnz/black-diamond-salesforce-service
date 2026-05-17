@@ -1,0 +1,80 @@
+name: 🚀 Build and Push Salesforce Extraction Service Staging
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # ==========================================================================
+  # 🧪 Job 1: Automated Quality Assurance (CI Boundary)
+  # ==========================================================================
+  test-gateway:
+    name: 🛡️ Execute Boundary Test Runner
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Check out repository code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Initialize Python Runtime environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: 📦 Install Hardened Dependency Manifest
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🚦 Run Automated Test Framework
+        env:
+          ENVIRONMENT: "test"
+          SECRET_KEY: "temporary-pipeline-test-key-safe-boundary"
+        run: |
+          pytest test_sync.py -v
+
+  # ==========================================================================
+  # 📦 Job 2: Secure Containerization & Harbor Ingestion (CD Boundary)
+  # ==========================================================================
+  build-and-ship:
+    name: 🐳 Build & Push Container to Harbor Registry
+    needs: test-gateway # 🔥 CRITICAL: Will terminate build immediately if pytest fails
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' # Only push image artifacts on direct merges/pushes
+
+    steps:
+      - name: 📥 Check out repository code
+        uses: actions/checkout@v4
+
+      - name: 🆔 Generate Deterministic Short Git SHA Tag
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: 🛠️ Set up Docker Buildx Context Engine
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Authenticate with Springer Capital Harbor Registry
+        uses: docker/login-action@v3
+        with:
+          registry: harbor-registry.service.consul:8085
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: 🚀 Compile and Push Production Image Layers
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # Generates dual tags: locks to the specific Git Commit SHA and updates 'latest'
+          tags: |
+            harbor-registry.service.consul:8085/black-diamond/black-diamond-salesforce-service:${{ steps.vars.outputs.sha_short }}
+            harbor-registry.service.consul:8085/black-diamond/black-diamond-salesforce-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

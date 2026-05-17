@@ -1,0 +1,10 @@
+venv/
+.env
+.env.local
+.git/
+.gitignore
+__pycache__/
+*.pyc
+certs/
+generate_headers.py
+test_etl_pipeline.py

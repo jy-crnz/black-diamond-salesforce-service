@@ -1,0 +1,103 @@
+# ==========================================================================
+# 🔒 Security & Secrets (CRITICAL)
+# ==========================================================================
+.env
+.env.local
+.env.*.local
+*.env
+
+# Salesforce Private Keys and Certificates
+certs/server.key
+certs/*.key
+certs/*.pem
+certs/*.p12
+
+# ==========================================================================
+# 🐍 Python Environment & Dependencies
+# ==========================================================================
+venv/
+.venv/
+env/
+ENV/
+isolated-env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ==========================================================================
+# ⚡ Byte-compiled / optimized / DLL files
+# ==========================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==========================================================================
+# 🧪 Automated Test Framework & Coverage
+# ==========================================================================
+.pytest_cache/
+.tox/
+.nosenv/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+pytest_debug.log
+
+# ==========================================================================
+# 💻 IDEs, Editors, & OS Metadata
+# ==========================================================================
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================================================
+# 📊 Local Ingestion Testing Outputs (Data Safeguard)
+# ==========================================================================
+*.parquet
+*.csv
+*.json
+!app/**/*.json
+*.log
+local_data/
+
+# Salesforce Local Sandbox Certificates
+private.pem
+public.crt
+
+# Local Sandbox Discovery Scripts
+EXECUTION-PLAN.txt
+PLAN-FOR-THE-PROJECT.txt
+test_bulk_live.py
+test_etl_pipeline.py
+test_hmac.py
+test_normalization.py
+test_salesforce_live.py
