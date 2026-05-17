@@ -34,9 +34,7 @@ jobs:
 
       - name: 🚦 Run Automated Test Framework
         env:
-          # Use a valid literal environment matching Pydantic's strict requirements
           ENVIRONMENT: "dev" 
-          # Supply all required variables with safe, dummy values to pass Pydantic validation
           SECRET_KEY: "temporary-pipeline-test-key-safe-boundary"
           SF_CONSUMER_KEY: "dummy-client-id"
           SF_USERNAME: "dummy-user@test.com"
@@ -44,6 +42,8 @@ jobs:
           DATABASE_URL: "postgresql+asyncpg://dummy:dummy@localhost:5432/dummy"
           HMAC_SECRET_KEY_CORE: "dummy-core-secret-key-32-chars-long"
           HMAC_SECRET_KEY_ENGINEER: "dummy-engineer-secret-key-32-chars-long"
+          # Satisfy the certificate fallback validator:
+          SF_PRIVATE_KEY_PEM: "dummy-private-key-pem-content" 
         run: |
           pytest test_sync.py -v
 
