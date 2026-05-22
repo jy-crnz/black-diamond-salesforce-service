@@ -5,10 +5,6 @@ from typing import Any, Dict, List, Optional
 from app.clients.bulk_api_client import SalesforceBulkAPIClient
 from app.services.normalization_service import NormalizationService
 from app.storage.minio_client import MinioStorageClient
-from app.storage.kafka_producer import SalesforceKafkaProducer
-
-# NEW IMPORTS: PII Masking and Deduplication
-from app.services.pii_service import PIIMaskingService
 from app.services.deduplication_service import DeduplicationService
 
 logger = logging.getLogger(__name__)
@@ -17,17 +13,15 @@ logger = logging.getLogger(__name__)
 class SalesforceExtractionService:
     """
     Core data pipeline orchestrator. Manages the lifecycle of Salesforce Bulk 2.0
-    query extractions, data transformations, cloud uploads, and message bus streaming.
+    query extractions, data transformations, and cloud uploads directly to the Data Lake.
     """
 
     def __init__(self):
         # The client manages its own authentication singleton internally.
         self.bulk_client = SalesforceBulkAPIClient()
         self.minio_client = MinioStorageClient()
-        self.kafka_producer = SalesforceKafkaProducer()
 
-        # NEW: Initialize the PII and Deduplication services
-        self.pii_service = PIIMaskingService()
+        # Initialize the Deduplication service (Data Lake protection)
         self.dedupe_service = DeduplicationService()
 
         self._soql_templates = {
@@ -87,7 +81,6 @@ class SalesforceExtractionService:
                 # 1. Compile query and trigger Bulk 2.0 query slot
                 soql = self._build_soql_query(obj, last_modified_after)
                 sf_job_id = await self.bulk_client.create_query_job(soql)
-                extracted_at = datetime.now(timezone.utc).isoformat()
 
                 # 2. Block and adaptive-poll client layers until processing finishes
                 logger.info(f"Polling status for {obj} job wrapper: {sf_job_id}...")
@@ -110,12 +103,13 @@ class SalesforceExtractionService:
 
                 results_iterator = self.bulk_client.iter_results(sf_job_id)
 
+                # Handle both async and sync iterators safely
                 if hasattr(results_iterator, "__aiter__"):
                     async for page_records in results_iterator:
                         if not page_records:
                             continue
 
-                        # 4a. Deduplicate the raw CSV chunk before processing
+                        # 4a. Deduplicate the raw CSV chunk before processing (In-Memory)
                         unique_records = self.dedupe_service.deduplicate_records(
                             page_records
                         )
@@ -124,30 +118,13 @@ class SalesforceExtractionService:
                         obj_record_count += chunk_size
                         total_extracted_records += chunk_size
 
-                        # 4b. Write pristine raw data to the MinIO Data Lake
+                        # 4b. Write pristine raw data directly to the MinIO Data Lake
                         parquet_stream = NormalizationService.convert_to_parquet_stream(
                             unique_records, id_column="Id"
                         )
                         minio_url = self.minio_client.upload_parquet_page(
                             parquet_stream, org_id, scan_id, obj, page_num
                         )
-
-                        # 4c. Apply PII Masking strictly for the event bus
-                        masked_records = await self.pii_service.mask_batch(
-                            unique_records
-                        )
-
-                        # 4d. Broadcast the redacted records to Kafka
-                        for record in masked_records:
-                            self.kafka_producer.publish_record(
-                                record,
-                                obj,
-                                org_id,
-                                scan_id,
-                                sf_job_id,
-                                page_num,
-                                extracted_at,
-                            )
 
                         results_summary[obj]["pages"].append(
                             {
@@ -162,7 +139,7 @@ class SalesforceExtractionService:
                         if not page_records:
                             continue
 
-                        # 4a. Deduplicate the raw CSV chunk before processing
+                        # 4a. Deduplicate the raw CSV chunk before processing (In-Memory)
                         unique_records = self.dedupe_service.deduplicate_records(
                             page_records
                         )
@@ -171,30 +148,13 @@ class SalesforceExtractionService:
                         obj_record_count += chunk_size
                         total_extracted_records += chunk_size
 
-                        # 4b. Write pristine raw data to the MinIO Data Lake
+                        # 4b. Write pristine raw data directly to the MinIO Data Lake
                         parquet_stream = NormalizationService.convert_to_parquet_stream(
                             unique_records, id_column="Id"
                         )
                         minio_url = self.minio_client.upload_parquet_page(
                             parquet_stream, org_id, scan_id, obj, page_num
                         )
-
-                        # 4c. Apply PII Masking strictly for the event bus
-                        masked_records = await self.pii_service.mask_batch(
-                            unique_records
-                        )
-
-                        # 4d. Broadcast the redacted records to Kafka
-                        for record in masked_records:
-                            self.kafka_producer.publish_record(
-                                record,
-                                obj,
-                                org_id,
-                                scan_id,
-                                sf_job_id,
-                                page_num,
-                                extracted_at,
-                            )
 
                         results_summary[obj]["pages"].append(
                             {
@@ -205,7 +165,7 @@ class SalesforceExtractionService:
                         )
                         page_num += 1
 
-                # 7. Perform best-effort remote resource cleanup
+                # 5. Perform best-effort remote resource cleanup
                 await self.bulk_client.delete_job(sf_job_id)
 
                 results_summary[obj]["status"] = "completed"
@@ -220,11 +180,8 @@ class SalesforceExtractionService:
                 )
                 results_summary[obj] = {"status": "error", "message": str(e)}
 
-        # 8. Finalize outstanding events before concluding transaction
-        self.kafka_producer.flush_bus()
-
         logger.info(
-            f"🏁 Sync operation complete. Grand total records exported: {total_extracted_records}"
+            f"🏁 Sync operation complete. Grand total records exported to Data Lake: {total_extracted_records}"
         )
         return {
             "scan_id": scan_id,

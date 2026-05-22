@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-# Import 'Depends', 'Response', and 'status' from fastapi
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status, Depends, Response
 from pydantic import BaseModel, Field
 
@@ -24,10 +23,6 @@ maintenance_service = MaintenanceService()
 class DestinationOverride(BaseModel):
     minio_bucket: Optional[str] = Field(
         default=None, description="Override target object store bucket name"
-    )
-    kafka_publish: bool = Field(
-        default=True,
-        description="Broadcast individual records along Kafka broker lines",
     )
     clickhouse_load: bool = Field(
         default=False, description="Coordinate direct downsink analytical injection"
@@ -100,7 +95,7 @@ async def trigger_salesforce_sync(
     authenticated_as: str = Depends(verify_hmac),
 ):
     """
-    Webhook endpoint to trigger the Salesforce-to-Postgres/MinIO ETL pipeline.
+    Webhook endpoint to trigger the Salesforce-to-MinIO ETL pipeline.
     Protected by upstream HMAC SHA-256 signature middleware validation.
     """
     logger.info(
@@ -155,7 +150,6 @@ async def health_check(response: Response):
         "version": "1.0.0",
         "salesforce_connected": False,
         "minio_connected": False,
-        "kafka_connected": False,
     }
 
     is_degraded = False
@@ -179,16 +173,6 @@ async def health_check(response: Response):
         logger.warning(
             f"Health Probe failure verifying MinIO object store bucket access: {e}"
         )
-        is_degraded = True
-
-    # 3. Evaluate Live Kafka Broker Connectivity
-    try:
-        if extraction_service.kafka_producer.producer:
-            # Direct cluster metadata poll to prove the brokers are actively responding
-            extraction_service.kafka_producer.producer.metrics()
-            health_status["kafka_connected"] = True
-    except Exception as e:
-        logger.warning(f"Health Probe failure polling live Kafka broker metadata: {e}")
         is_degraded = True
 
     # Handle system-wide state transitions if dependencies are offline

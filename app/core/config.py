@@ -75,23 +75,6 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "salesforce-dev"
 
     # ==========================================================================
-    # 🚀 Kafka Event Streaming Bus
-    # ==========================================================================
-    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
-    KAFKA_CONSUMER_GROUP_ID: str = "sf-service-dev"
-    KAFKA_AUTO_OFFSET_RESET: str = "earliest"
-    KAFKA_ENABLE_AUTO_COMMIT: bool = True
-
-    # Dedicated Pipeline Target Topics
-    KAFKA_SF_CONTACTS_TOPIC: str = "sf.contacts.dev"
-    KAFKA_SF_ACCOUNTS_TOPIC: str = "sf.accounts.dev"
-    KAFKA_SF_OPPORTUNITIES_TOPIC: str = "sf.opportunities.dev"
-    KAFKA_SF_ACTIVITIES_TOPIC: str = "sf.activities.dev"
-    KAFKA_SF_LEADS_TOPIC: str = "sf.leads.dev"
-    KAFKA_SF_USERS_TOPIC: str = "sf.users.dev"
-    KAFKA_SF_CAMPAIGNS_TOPIC: str = "sf.campaigns.dev"
-
-    # ==========================================================================
     # 📊 ClickHouse Analytics Store (Target analytical storage sink)
     # ==========================================================================
     CLICKHOUSE_ENABLED: bool = False
@@ -102,7 +85,7 @@ class Settings(BaseSettings):
     CLICKHOUSE_DATABASE: str = "salesforce"
 
     # ==========================================================================
-    # 🔐 Internal Security & PII Processing Gateways
+    # 🔐 Internal Security Gateway
     # ==========================================================================
     HMAC_ENABLED: bool = True
     HMAC_SIGNATURE_MAX_AGE: int = 300
@@ -112,12 +95,6 @@ class Settings(BaseSettings):
     HMAC_SECRET_KEY_ENGINEER: SecretStr = Field(
         ..., description="Shared secret for debug overrides"
     )
-
-    # PII Gateway Masking Engine
-    PII_MASKING_ENABLED: bool = False
-    PII_SERVICE_URL: str = "http://localhost:8100"
-    PII_HMAC_KEY: Optional[SecretStr] = SecretStr("local_pii_secret_fallback")
-    PII_SERVICE_ID: str = "sf-service-dev"
 
     # ==========================================================================
     # 🧼 Crypto-Key Sanitization Middleware
