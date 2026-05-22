@@ -1,18 +1,14 @@
 import asyncio
 from datetime import datetime, timezone
-from app.services.pii_service import PIIMaskingService
 from app.services.normalization_service import NormalizationService
 from app.storage.minio_client import MinioStorageClient
-from app.storage.kafka_producer import SalesforceKafkaProducer
 
 
 async def run_demo():
-    print("🚀 Booting Local Demonstration Pipeline...\n" + "-" * 50)
+    print("🚀 Booting Local Data-Lake Pipeline (Direct-to-MinIO)...\n" + "-" * 50)
 
     # 1. Initialize Services
-    pii_service = PIIMaskingService()
     minio_client = MinioStorageClient()
-    kafka_producer = SalesforceKafkaProducer()
 
     # 2. Create Dummy Salesforce Data
     dummy_records = [
@@ -39,10 +35,14 @@ async def run_demo():
         },
     ]
 
-    # 3. MinIO Parquet Normalization
+    # 3. Compile and Upload to MinIO
     print("📦 Compiling Parquet memory stream...")
-    parquet_stream = NormalizationService.convert_to_parquet_stream(dummy_records)
-    minio_client.upload_parquet_page(
+    parquet_stream = NormalizationService.convert_to_parquet_stream(
+        dummy_records, id_column="Id"
+    )
+
+    print("☁️ Uploading directly to MinIO Data Lake...")
+    minio_url = minio_client.upload_parquet_page(
         stream=parquet_stream,
         org_id="glynac-org-001",
         scan_id="scan-verification-004",
@@ -50,23 +50,7 @@ async def run_demo():
         page_num=1,
     )
 
-    # 4. PII Masking & Kafka Streaming
-    print("🛡️ Applying PII Masking Shield...")
-    masked_records = await pii_service.mask_batch(dummy_records)
-
-    print("📡 Streaming to Apache Kafka...")
-    for record in masked_records:
-        kafka_producer.publish_record(
-            record=record,
-            object_type="Contact",
-            org_id="glynac-org-001",
-            scan_id="scan-verification-004",
-            sf_job_id="demo-job-id",
-            page_num=1,
-            extracted_at=datetime.now(timezone.utc).isoformat(),
-        )
-
-    kafka_producer.flush_bus()
+    print(f"✅ Success! Data lake storage path: {minio_url}")
     print("-" * 50 + "\n✅ Demonstration Complete!")
 
 
